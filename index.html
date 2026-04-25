@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASYLUM - VR Horror Experience</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            font-family: 'Arial Black', sans-serif;
+            z-index: 100;
+        }
+
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ff00;
+            padding: 15px;
+            font-size: 12px;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            font-family: 'Courier New', monospace;
+            pointer-events: auto;
+        }
+
+        #healthbar {
+            width: 200px;
+            height: 20px;
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        #health {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0000, #ffaa00);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        #sanity {
+            margin-top: 10px;
+            color: #ff00ff;
+            text-shadow: 0 0 10px #ff00ff;
+        }
+
+        #sanitybar {
+            width: 200px;
+            height: 20px;
+            background: #1a1a1a;
+            border: 1px solid #ff00ff;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        #sanityFill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff00ff, #8000ff);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+        }
+
+        #startScreen.hidden {
+            display: none;
+            pointer-events: none;
+        }
+
+        #startScreen h1 {
+            font-size: 4em;
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #aa0000;
+            margin-bottom: 20px;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        #startScreen p {
+            font-size: 1.2em;
+            color: #00ff00;
+            margin: 10px 0;
+            text-shadow: 0 0 10px #00ff00;
+        }
+
+        #startButton {
+            margin-top: 30px;
+            padding: 15px 30px;
+            background: #ff0000;
+            color: #000;
+            border: 2px solid #ff0000;
+            font-size: 1.2em;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+
+        #startButton:hover {
+            background: #ff6666;
+            box-shadow: 0 0 20px #ff0000;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 255, 0, 0.03),
+                rgba(0, 255, 0, 0.03) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            z-index: 150;
+        }
+
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+            z-index: 99;
+        }
+
+        #warning {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8);
+            color: #fff;
+            padding: 30px;
+            border: 3px solid #ff0000;
+            text-align: center;
+            font-size: 1.5em;
+            opacity: 0;
+            pointer-events: none;
+            text-shadow: 0 0 10px #ff0000;
+            z-index: 180;
+            animation: pulse 0.5s;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        #instructions {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ffff;
+            padding: 15px;
+            font-size: 12px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            max-width: 250px;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <div id="startScreen">
+            <h1>⚠ ASYLUM ⚠</h1>
+            <p>AN ABANDONED FACILITY</p>
+            <p>SOMETHING WATCHES IN THE DARK</p>
+            <button id="startButton">ENTER</button>
+        </div>
+        <div id="hud">
+            <div>⟨ VITAL SYSTEMS ⟩</div>
+            <div>HEALTH: <span id="healthPercent">100</span>%</div>
+            <div id="healthbar"><div id="health"></div></div>
+            <div id="sanity">SANITY: <span id="sanityPercent">100</span>%</div>
+            <div id="sanitybar"><div id="sanityFill"></div></div>
+            <div style="margin-top: 15px; font-size: 10px;">⟨ ENTITIES DETECTED ⟩</div>
+            <div id="threat" style="color: #ff6600; text-shadow: 0 0 5px #ff6600;">THREAT LEVEL: MINIMAL</div>
+        </div>
+        <div id="instructions">
+            <div style="color: #ffff00; text-shadow: 0 0 10px #ffff00; margin-bottom: 10px;">⟨ CONTROLS ⟩</div>
+            <div>WASD / Arrow Keys: Move</div>
+            <div>Mouse: Look Around</div>
+            <div>Gamepad: Movement & Look</div>
+            <div>SPACE: Jump</div>
+            <div>Click Canvas to Lock Pointer</div>
+        </div>
+        <div id="warning"></div>
+        <div class="scanlines"></div>
+        <div id="vignette"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/webxr/XRButton.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/webxr/XRControllerModelFactory.js"></script>
+    <script>
+        // Game State
+        const gameState = {
+            health: 100,
+            sanity: 100,
+            started: false,
+            threatLevel: 0,
+            encounterEntity: false,
+            vrMode: false
+        };
+
+        // Scene Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+        scene.fog = new THREE.Fog(0x0a0a0a, 50, 200);
+
+        const canvas = document.getElementById('canvas');
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, xrCompatible: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+        renderer.xr.enabled = true;
+        renderer.xr.setFoveation(1);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x111111);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0x1a1a1a, 0.3);
+        mainLight.position.set(100, 100, 100);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.camera.far = 500;
+        mainLight.shadow.camera.left = -150;
+        mainLight.shadow.camera.right = 150;
+        mainLight.shadow.camera.top = 150;
+        mainLight.shadow.camera.bottom = -150;
+        scene.add(mainLight);
+
+        // Create flickering horror lights
+        const flickeringLights = [];
+        for (let i = 0; i < 5; i++) {
+            const light = new THREE.PointLight(0xff0000, 0, 100);
+            light.position.set(Math.random() * 80 - 40, Math.random() * 40 + 10, Math.random() * 80 - 40);
+            scene.add(light);
+            flickeringLights.push({ light, flickerSpeed: Math.random() * 0.1 + 0.05, time: 0 });
+        }
+
+        // VR Controller Setup
+        const controllers = [];
+        const controllerModelFactory = new THREE.XRControllerModelFactory();
+
+        for (let i = 0; i < 2; i++) {
+            const controller = renderer.xr.getController(i);
+            scene.add(controller);
+            controllers.push(controller);
+
+            const controllerGrip = renderer.xr.getControllerGrip(i);
+            controllerGrip.add(controllerModelFactory.createControllerModel(controllerGrip));
+            scene.add(controllerGrip);
+
+            // Create ray indicator
+            const geometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -2)
+            ]);
+            const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
+            controller.add(line);
+
+            controller.addEventListener('select', onControllerSelect);
+        }
+
+        function onControllerSelect() {
+            // Controller select action
+        }
+
+        // Create asylum environment
+        function createApartment() {
+            // Floor
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a1a,
+                roughness: 0.8,
+                metalness: 0
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Ceiling
+            const ceilingGeometry = new THREE.PlaneGeometry(100, 100);
+            const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x0a0a0a,
+                roughness: 0.9
+            });
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.position.y = 10;
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.receiveShadow = true;
+            scene.add(ceiling);
+
+            // Walls
+            const wallMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a1a,
+                roughness: 0.7
+            });
+
+            const wallGeometry = new THREE.PlaneGeometry(100, 10);
+            
+            // Wall 1
+            const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall1.position.z = -50;
+            wall1.position.y = 5;
+            wall1.receiveShadow = true;
+            scene.add(wall1);
+
+            // Wall 2
+            const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall2.position.z = 50;
+            wall2.position.y = 5;
+            wall2.rotation.y = Math.PI;
+            wall2.receiveShadow = true;
+            scene.add(wall2);
+
+            // Wall 3
+            const wall3 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall3.position.x = -50;
+            wall3.position.y = 5;
+            wall3.rotation.y = Math.PI / 2;
+            wall3.receiveShadow = true;
+            scene.add(wall3);
+
+            // Wall 4
+            const wall4 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall4.position.x = 50;
+            wall4.position.y = 5;
+            wall4.rotation.y = -Math.PI / 2;
+            wall4.receiveShadow = true;
+            scene.add(wall4);
+
+            // Create creepy geometric horror entities
+            createHorrorEntity(-20, 1.5, -30);
+            createHorrorEntity(25, 1.5, 25);
+            createHorrorEntity(30, 1.5, -20);
+            createHorrorEntity(-35, 1.5, 20);
+
+            // Create mysterious pillars
+            for (let i = 0; i < 6; i++) {
+                const pillarGeometry = new THREE.CylinderGeometry(2, 2, 10, 8);
+                const pillarMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x0f0f0f,
+                    metalness: 0.3,
+                    roughness: 0.4
+                });
+                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+                pillar.position.set(
+                    Math.cos(i * Math.PI / 3) * 30,
+                    5,
+                    Math.sin(i * Math.PI / 3) * 30
+                );
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                scene.add(pillar);
+            }
+        }
+
+        function createHorrorEntity(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            // Twisted geometric body
+            const bodyGeometry = new THREE.IcosahedronGeometry(1.5, 4);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x220011,
+                emissive: 0x440022,
+                metalness: 0.5,
+                roughness: 0.3,
+                wireframe: Math.random() > 0.5
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            body.receiveShadow = true;
+            body.scale.set(1, 2, 1);
+            group.add(body);
+
+            // Spike protrusions
+            for (let i = 0; i < 4; i++) {
+                const spikeGeometry = new THREE.ConeGeometry(0.3, 2, 8);
+                const spikeMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x550022,
+                    emissive: 0x330011
+                });
+                const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+                spike.position.copy(body.position);
+                spike.position.x += Math.random() * 2 - 1;
+                spike.position.y += Math.random() * 2 - 1;
+                spike.position.z += Math.random() * 2 - 1;
+                spike.castShadow = true;
+                spike.receiveShadow = true;
+                group.add(spike);
+            }
+
+            group.userData.type = 'horror';
+            group.userData.speed = Math.random() * 0.5 + 0.2;
+            group.userData.rotation = Math.random() * Math.PI * 2;
+            group.userData.rotationSpeed = Math.random() * 0.005 + 0.001;
+            scene.add(group);
+        }
+
+        // Input handling
+        const keys = {};
+        const gamepadState = { x: 0, y: 0, lx: 0, ly: 0 };
+        const velocity = new THREE.Vector3();
+        let isPointerLocked = false;
+        let vrSession = null;
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ') gameState.jumping = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked || gameState.vrMode) return;
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y -= e.movementX * 0.003;
+            camera.rotation.x -= e.movementY * 0.003;
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+        });
+
+        canvas.addEventListener('click', () => {
+            if (!gameState.vrMode) {
+                canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+                canvas.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = document.pointerLockElement === canvas;
+        });
+
+        // Update HUD
+        function updateHUD() {
+            document.getElementById('healthPercent').textContent = Math.max(0, Math.floor(gameState.health));
+            document.getElementById('sanityPercent').textContent = Math.max(0, Math.floor(gameState.sanity));
+            document.getElementById('health').style.width = Math.max(0, gameState.health) + '%';
+            document.getElementById('sanityFill').style.width = Math.max(0, gameState.sanity) + '%';
+
+            // Threat level indicator
+            const threatDisplay = document.getElementById('threat');
+            if (gameState.threatLevel < 30) {
+                threatDisplay.textContent = 'THREAT LEVEL: MINIMAL';
+                threatDisplay.style.color = '#00ff00';
+                threatDisplay.style.textShadow = '0 0 5px #00ff00';
+            } else if (gameState.threatLevel < 60) {
+                threatDisplay.textContent = 'THREAT LEVEL: MODERATE';
+                threatDisplay.style.color = '#ffaa00';
+                threatDisplay.style.textShadow = '0 0 5px #ffaa00';
+            } else {
+                threatDisplay.textContent = 'THREAT LEVEL: CRITICAL';
+                threatDisplay.style.color = '#ff0000';
+                threatDisplay.style.textShadow = '0 0 5px #ff0000';
+            }
+        }
+
+        // Game loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!gameState.started) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // Update gamepad
+            const gamepads = navigator.getGamepads();
+            if (gamepads[0]) {
+                gamepadState.lx = gamepads[0].axes[0];
+                gamepadState.ly = gamepads[0].axes[1];
+                gamepadState.x = gamepads[0].axes[2];
+                gamepadState.y = gamepads[0].axes[3];
+            }
+
+            // Movement
+            const direction = new THREE.Vector3();
+            const forward = new THREE.Vector3();
+            const right = new THREE.Vector3();
+
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            let moveSpeed = gameState.vrMode ? 0.15 : 0.3;
+
+            if (!gameState.vrMode) {
+                // Keyboard movement
+                if (keys['w'] || keys['arrowup']) direction.addScaledVector(forward, 1);
+                if (keys['s'] || keys['arrowdown']) direction.addScaledVector(forward, -1);
+                if (keys['a'] || keys['arrowleft']) direction.addScaledVector(right, -1);
+                if (keys['d'] || keys['arrowright']) direction.addScaledVector(right, 1);
+
+                // Gamepad movement
+                if (Math.abs(gamepadState.ly) > 0.2) {
+                    direction.addScaledVector(forward, -gamepadState.ly);
+                }
+                if (Math.abs(gamepadState.lx) > 0.2) {
+                    direction.addScaledVector(right, gamepadState.lx);
+                }
+
+                // Gamepad look
+                if (Math.abs(gamepadState.x) > 0.2) {
+                    camera.rotation.y -= gamepadState.x * 0.05;
+                }
+                if (Math.abs(gamepadState.y) > 0.2) {
+                    camera.rotation.x -= gamepadState.y * 0.05;
+                    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+                }
+
+                direction.normalize();
+                camera.position.addScaledVector(direction, moveSpeed);
+                camera.position.y = 1.6; // Keep eye level constant
+            } else {
+                // VR Movement using controller thumbsticks
+                const xrSession = renderer.xr.getSession();
+                if (xrSession) {
+                    const inputSources = xrSession.inputSources;
+                    for (let i = 0; i < inputSources.length; i++) {
+                        const inputSource = inputSources[i];
+                        if (inputSource.gamepad) {
+                            const axes = inputSource.gamepad.axes;
+                            // Use left thumbstick for movement
+                            if (Math.abs(axes[2]) > 0.2) {
+                                const vrForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                                vrForward.y = 0;
+                                vrForward.normalize();
+                                camera.position.addScaledVector(vrForward, axes[3] * moveSpeed);
+                            }
+                            if (Math.abs(axes[2]) > 0.2) {
+                                const vrRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                                camera.position.addScaledVector(vrRight, axes[2] * moveSpeed);
+                            }
+                        }
+                    }
+                }
+
+                // Keep player standing position valid
+                camera.position.x = Math.max(-45, Math.min(45, camera.position.x));
+                camera.position.z = Math.max(-45, Math.min(45, camera.position.z));
+            }
+
+            // Clamp position (desktop mode)
+            if (!gameState.vrMode) {
+                camera.position.x = Math.max(-45, Math.min(45, camera.position.x));
+                camera.position.z = Math.max(-45, Math.min(45, camera.position.z));
+            }
+
+            // Update horror entities
+            let minDistance = Infinity;
+            scene.traverse((child) => {
+                if (child.userData.type === 'horror') {
+                    // Rotate
+                    child.rotation.x += child.userData.rotationSpeed;
+                    child.rotation.y += child.userData.rotationSpeed * 1.5;
+                    child.rotation.z += child.userData.rotationSpeed * 0.5;
+
+                    // Bob up and down
+                    child.position.y += Math.sin(Date.now() * child.userData.speed * 0.001) * 0.01;
+
+                    // Calculate distance to player
+                    const distance = camera.position.distanceTo(child.position);
+                    minDistance = Math.min(minDistance, distance);
+
+                    // Chase player if close
+                    if (distance < 30) {
+                        const direction = new THREE.Vector3();
+                        direction.subVectors(camera.position, child.position).normalize();
+                        child.position.addScaledVector(direction, child.userData.speed * 0.01);
+                    }
+                }
+            });
+
+            // Update threat level and health/sanity based on proximity
+            gameState.threatLevel = Math.max(0, 100 - minDistance * 2);
+            
+            if (minDistance < 15) {
+                gameState.health -= 0.1;
+                gameState.sanity -= 0.15;
+                gameState.encounterEntity = true;
+
+                // Show warning when very close
+                if (minDistance < 8) {
+                    const warning = document.getElementById('warning');
+                    warning.textContent = '⚠ ENTITY DETECTED ⚠';
+                    warning.style.animation = 'none';
+                    setTimeout(() => {
+                        warning.style.animation = 'pulse 0.5s';
+                    }, 10);
+                }
+            }
+
+            // Sanity effects
+            if (gameState.sanity < 50) {
+                document.body.style.filter = `hue-rotate(${(50 - gameState.sanity) * 5}deg)`;
+            }
+
+            // Flickering lights
+            flickeringLights.forEach(light => {
+                light.time += light.flickerSpeed;
+                light.light.intensity = Math.abs(Math.sin(light.time)) * 0.8;
+            });
+
+            updateHUD();
+
+            // Check if dead
+            if (gameState.health <= 0 || gameState.sanity <= 0) {
+                document.getElementById('warning').textContent = 'YOU HAVE BEEN CONSUMED';
+                document.getElementById('warning').style.animation = 'pulse 0.3s infinite';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Start button
+        document.getElementById('startButton').addEventListener('click', () => {
+            document.getElementById('startScreen').classList.add('hidden');
+            gameState.started = true;
+            if (!gameState.vrMode) {
+                canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+                canvas.requestPointerLock();
+            }
+        });
+
+        // VR Button Setup
+        const vrButton = document.createElement('button');
+        vrButton.id = 'vrButton';
+        vrButton.textContent = 'ENTER VR';
+        vrButton.style.cssText = `
+            margin-left: 20px;
+            padding: 15px 30px;
+            background: #0000ff;
+            color: #fff;
+            border: 2px solid #0000ff;
+            font-size: 1.2em;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            pointer-events: auto;
+            font-family: Arial Black, sans-serif;
+        `;
+        
+        vrButton.addEventListener('mouseover', () => {
+            vrButton.style.background = '#6666ff';
+            vrButton.style.boxShadow = '0 0 20px #0000ff';
+        });
+        
+        vrButton.addEventListener('mouseout', () => {
+            vrButton.style.background = '#0000ff';
+            vrButton.style.boxShadow = 'none';
+        });
+
+        vrButton.addEventListener('click', async () => {
+            try {
+                const session = await navigator.xr.requestSession('immersive-vr', {
+                    optionalFeatures: ['local-floor', 'bounded-floor']
+                });
+                renderer.xr.setSession(session);
+                gameState.vrMode = true;
+                gameState.started = true;
+                document.getElementById('startScreen').classList.add('hidden');
+            } catch (error) {
+                console.error('VR session error:', error);
+                alert('VR not supported on this device');
+            }
+        });
+
+        // Check VR support
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                if (supported) {
+                    document.getElementById('startButton').parentElement.appendChild(vrButton);
+                }
+            });
+        }
+
+        // Initialize
+        createApartment();
+        
+        // Setup XR animation loop
+        renderer.setAnimationLoop((time, frame) => {
+            animate();
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
