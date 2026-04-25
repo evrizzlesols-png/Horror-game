@@ -1,2 +1,2 @@
 # Horror-game
-Vr horror game
+this is scary horror game
